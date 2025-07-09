@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DM Image Manager Wireframe</title>
+  <style>
+    /* Custom variable for fit style */
+    :root {
+      --fit-style: contain;
+    }
+
+    /* Container Layout */
+    body {
+      display: grid;
+      grid-template-columns: 1fr 3fr;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      padding: 1rem;
+      background-color: #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    nav {
+      grid-row: 2;
+      padding: 1rem;
+      background-color: #f5f5f5;
+      overflow-y: auto;
+    }
+
+    /* Thumbnail Gallery */
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .thumb {
+      width: 100%;
+      height: 80px;
+      background-color: #ddd;
+      object-fit: cover;
+      cursor: pointer;
+    }
+
+    .thumb.selected {
+      outline: 3px solid #007acc;
+    }
+
+    /* Controls Panel */
+    section.controls {
+      grid-row: 2;
+      grid-column: 2;
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      background-color: #fafafa;
+    }
+
+    /* Checkbox control */
+    #fit-toggle-container {
+      margin-bottom: 1rem;
+    }
+
+    .layout-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1rem 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .layout-list li {
+      padding: 0.5rem;
+      background-color: #ccc;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .layout-list li.active {
+      background-color: #007acc;
+      color: #fff;
+    }
+
+    /* Layout Preview Area */
+    #layout-preview {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      display: grid;
+      gap: 0.5rem;
+      border: 1px dashed #bbb;
+      background-color: #fff;
+      overflow: hidden;
+      margin-bottom: 1rem;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    #layout-preview,
+    #layout-preview > * {
+      min-width: 0;
+      min-height: 0;
+    }
+
+    #layout-preview > * {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Use custom fit style */
+    #layout-preview img {
+      display: block;
+      object-fit: var(--fit-style);
+      object-position: center;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Drop Zone */
+    #drop-zone {
+      border: 2px dashed #bbb;
+      padding: 1rem;
+      text-align: center;
+      background-color: #fafafa;
+      color: #666;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DM Image Manager</h1>
+    <div>
+      <input
+        type="text"
+        id="url-input"
+        placeholder="Paste image URL here"
+        style="width: 200px;"
+      />
+      <button id="add-url-btn">Add from Web</button>
+      <button id="import-btn">Import Images</button>
+      <button id="clear-gallery-btn">Clear Gallery</button>
+      <button id="cast-btn">Cast to Display</button>
+      <button id="clear-display-btn">Clear Display</button>
+      <input
+        type="file"
+        id="file-input"
+        accept="image/*"
+        multiple
+        style="display: none;"
+      />
+    </div>
+  </header>
+
+  <nav>
+    <div id="drop-zone">Drop images here or click "Import Images"</div>
+    <div class="gallery" id="gallery"></div>
+  </nav>
+
+  <section class="controls">
+    <h2>Layouts</h2>
+    <!-- Fit toggle checkbox -->
+    <div id="fit-toggle-container">
+      <label>
+        <input type="checkbox" id="fit-toggle" /> Make Images Fill Space
+      </label>
+    </div>
+    <ul class="layout-list" id="layout-list">
+      <li data-layout="1x1">Full-screen (1×1)</li>
+      <li data-layout="1x2">Two-panel (1 row × 2 cols)</li>
+      <li data-layout="2x2">Four-panel (2 rows × 2 cols)</li>
+      <li data-layout="2x3">Six-panel (2 rows × 3 cols)</li>
+      <li data-layout="2x4">Eight-panel (2 rows × 4 cols)</li>
+      <li data-layout="2x5">Ten-panel (2 rows × 5 cols)</li>
+      <li data-layout="3x3">Nine-panel (3 rows × 3 cols)</li>
+    </ul>
+    <div id="layout-preview">Select a layout to preview</div>
+  </section>
+
+  <script>
+    // DOM Elements
+    const fileInput = document.getElementById('file-input');
+    const importBtn = document.getElementById('import-btn');
+    const clearGalleryBtn = document.getElementById('clear-gallery-btn');
+    const dropZone = document.getElementById('drop-zone');
+    const gallery = document.getElementById('gallery');
+    const layoutList = document.getElementById('layout-list');
+    const preview = document.getElementById('layout-preview');
+    const castBtn = document.getElementById('cast-btn');
+    const clearDisplayBtn = document.getElementById('clear-display-btn');
+    const addUrlBtn = document.getElementById('add-url-btn');
+    const urlInput = document.getElementById('url-input');
+    const fitToggle = document.getElementById('fit-toggle');
+
+    // State
+    let selectedThumbs = [];
+    let lastIndex = null;
+    let activeLayout = null;
+    let displayWindow = null;
+    let dragSrcIdx = null;
+
+    /* File Import Logic */
+    importBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => processFiles(e.target.files));
+    addUrlBtn.addEventListener('click', () => {
+      const url = urlInput.value.trim();
+      if (!url) return;
+      const img = document.createElement('img');
+      img.src = url;
+      img.classList.add('thumb');
+      img.tabIndex = 0;
+      img.dataset.filename = url;
+      img.addEventListener('error', () => {
+        alert('Failed to load image from URL');
+        img.remove();
+      });
+      gallery.appendChild(img);
+      attachThumbnailEvents(img);
+      urlInput.value = '';
+    });
+    ['dragenter','dragover','dragleave','drop'].forEach(evt => {
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
+    });
+    dropZone.addEventListener('dragover', () => dropZone.style.backgroundColor = '#e0e0e0');
+    dropZone.addEventListener('dragleave', () => dropZone.style.backgroundColor = '#fafafa');
+    dropZone.addEventListener('drop', (e) => {
+      dropZone.style.backgroundColor = '#fafafa';
+      processFiles(e.dataTransfer.files);
+    });
+
+    function processFiles(files) {
+      Array.from(files)
+        .filter(file => file.type.startsWith('image/'))
+        .forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.classList.add('thumb');
+            img.tabIndex = 0;
+            img.dataset.filename = file.name;
+            gallery.appendChild(img);
+            attachThumbnailEvents(img);
+          };
+          reader.readAsDataURL(file);
+        });
+    }
+
+    /* Thumbnail Selection */
+    function attachThumbnailEvents(img) {
+      img.addEventListener('click', (e) => selectThumbnail(e, img));
+      img.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') selectThumbnail(e, img);
+      });
+    }
+
+    function selectThumbnail(e, img) {
+      const thumbs = Array.from(gallery.querySelectorAll('.thumb'));
+      const idx = thumbs.indexOf(img);
+      if (e.shiftKey && lastIndex !== null) {
+        const [start, end] = [lastIndex, idx].sort((a,b) => a-b);
+        thumbs.slice(start, end+1).forEach(t => t.classList.add('selected'));
+      } else if (e.ctrlKey || e.metaKey) {
+        img.classList.toggle('selected');
+        lastIndex = idx;
+      } else {
+        thumbs.forEach(t => t.classList.remove('selected'));
+        img.classList.add('selected');
+        lastIndex = idx;
+      }
+      selectedThumbs = Array.from(gallery.querySelectorAll('.thumb.selected'));
+      renderPreview();
+    }
+
+    /* Toggle fit style */
+    fitToggle.addEventListener('change', () => {
+      const style = fitToggle.checked ? 'cover' : 'contain';
+      document.documentElement.style.setProperty('--fit-style', style);
+    });
+
+    /* Layout Selection & Preview */
+    layoutList.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'LI') return;
+      layoutList.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+      e.target.classList.add('active');
+      activeLayout = e.target.dataset.layout;
+      renderPreview();
+    });
+
+    function renderPreview() {
+      preview.innerHTML = '';
+      preview.style.gridTemplateRows = '';
+      preview.style.gridTemplateColumns = '';
+      preview.style.gridAutoFlow = '';
+
+      if (selectedThumbs.length === 0) {
+        selectedThumbs = Array.from(gallery.querySelectorAll('.thumb'));
+      }
+
+      const match = activeLayout && activeLayout.match(/^(\d+)x(\d+)$/);
+      if (match) {
+        const rows = +match[1];
+        const cols = +match[2];
+        preview.style.gridTemplateRows = `repeat(${rows}, minmax(0,1fr))`;
+        preview.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
+        const count = rows * cols;
+        for (let i = 0; i < count; i++) {
+          const cell = document.createElement('div');
+          cell.classList.add('preview-cell');
+          cell.dataset.index = i;
+          cell.draggable = !!selectedThumbs[i];
+          if (selectedThumbs[i]) {
+            const img = document.createElement('img');
+            img.src = selectedThumbs[i].src;
+            cell.appendChild(img);
+          } else {
+            cell.style.backgroundColor = '#eee';
+          }
+          addDragHandlers(cell);
+          preview.appendChild(cell);
+        }
+      }
+    }
+
+    /* Drag & Drop Swap Handlers */
+    function addDragHandlers(cell) {
+      cell.addEventListener('dragstart', (e) => {
+        dragSrcIdx = Number(e.currentTarget.dataset.index);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      cell.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      });
+      cell.addEventListener('drop', (e) => {
+        e.stopPropagation();
+        const destIdx = Number(e.currentTarget.dataset.index);
+        if (dragSrcIdx === null || destIdx === dragSrcIdx) return;
+        const tmp = selectedThumbs[dragSrcIdx];
+        selectedThumbs[dragSrcIdx] = selectedThumbs[destIdx];
+        selectedThumbs[destIdx] = tmp;
+        dragSrcIdx = null;
+        renderPreview();
+      });
+    }
+
+    /* Cast to Display Flow */
+    castBtn.addEventListener('click', () => {
+      if (!activeLayout) return;
+      if (!displayWindow || displayWindow.closed) {
+        displayWindow = window.open('', 'dm-display', 'toolbar=0,location=0,menubar=0');
+      }
+      const doc = displayWindow.document;
+      doc.open();
+      doc.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DM Display</title><style>' +
+        'html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;}');
+      // set custom property in display doc
+      const fitStyle = getComputedStyle(document.documentElement).getPropertyValue('--fit-style').trim();
+      doc.write(`:root{--fit-style:${fitStyle};}`);
+      doc.write('#container{display:grid;');
+      const m2 = activeLayout.match(/^(\d+)x(\d+)$/);
+      const rr = m2 ? m2[1] : 1;
+      const cc = m2 ? m2[2] : 1;
+      doc.write(`grid-template-rows:repeat(${rr},minmax(0,1fr));grid-template-columns:repeat(${cc},minmax(0,1fr));`);
+      doc.write('width:100%;height:100%;}#container div, #container img{width:100%;height:100%;object-fit:var(--fit-style);object-position:center;}');
+      doc.write('</style></head><body><div id="container">');
+      for (let i=0; i<selectedThumbs.length; i++) {
+        const thumb = selectedThumbs[i];
+        if (thumb) {
+          doc.write(`<img src="${thumb.src}"/>`);
+        } else {
+          doc.write('<div style="background:#eee;"></div>');
+        }
+      }
+      doc.write('</div></body></html>');
+      doc.close();
+    });
+
+    clearDisplayBtn.addEventListener('click', () => {
+      if (displayWindow && !displayWindow.closed) displayWindow.close();
+      displayWindow = null;
+    });
+
+    /* Clear Gallery Action */
+    clearGalleryBtn.addEventListener('click', () => {
+      gallery.innerHTML = '';
+      selectedThumbs = [];
+      lastIndex = null;
+      activeLayout = null;
+      layoutList.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+      renderPreview();
+    });
+  </script>
+</body>
+</html>
