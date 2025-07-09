@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <title>DM Image Manager Wireframe</title>
+  <title>DM Image Manager</title>
   <style>
     /* Custom variable for fit style */
     :root {
@@ -13,7 +14,7 @@
     body {
       display: grid;
       grid-template-columns: 1fr 3fr;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
       height: 100vh;
       margin: 0;
       font-family: Arial, sans-serif;
@@ -92,7 +93,10 @@
 
     /* Layout Preview Area */
     #layout-preview {
+      max-width: 100%;
+      max-height: 100%;
       width: 100%;
+      height: auto;
       aspect-ratio: 16 / 9;
       display: grid;
       gap: 0.5rem;
@@ -105,12 +109,12 @@
     }
 
     #layout-preview,
-    #layout-preview > * {
+    #layout-preview>* {
       min-width: 0;
       min-height: 0;
     }
 
-    #layout-preview > * {
+    #layout-preview>* {
       width: 100%;
       height: 100%;
     }
@@ -135,33 +139,23 @@
     }
   </style>
 </head>
+
 <body>
   <header>
     <h1>DM Image Manager</h1>
     <div>
-      <input
-        type="text"
-        id="url-input"
-        placeholder="Paste image URL here"
-        style="width: 200px;"
-      />
+      <input type="text" id="url-input" placeholder="Paste image URL here" style="width: 200px;" />
       <button id="add-url-btn">Add from Web</button>
-      <button id="import-btn">Import Images</button>
+      <button id="import-btn">Import Images from PC</button>
       <button id="clear-gallery-btn">Clear Gallery</button>
       <button id="cast-btn">Cast to Display</button>
-      <button id="clear-display-btn">Clear Display</button>
-      <input
-        type="file"
-        id="file-input"
-        accept="image/*"
-        multiple
-        style="display: none;"
-      />
+      <button id="clear-display-btn">Close Display</button>
+      <input type="file" id="file-input" accept="image/*" multiple style="display: none;" />
     </div>
   </header>
 
   <nav>
-    <div id="drop-zone">Drop images here or click "Import Images"</div>
+    <div id="drop-zone">Drop images here or click "Import Images" above</div>
     <div class="gallery" id="gallery"></div>
   </nav>
 
@@ -176,11 +170,14 @@
     <ul class="layout-list" id="layout-list">
       <li data-layout="1x1">Full-screen (1×1)</li>
       <li data-layout="1x2">Two-panel (1 row × 2 cols)</li>
+      <li data-layout="2x1">Two-panel Vertical (2 row × 1 cols)</li>
       <li data-layout="2x2">Four-panel (2 rows × 2 cols)</li>
       <li data-layout="2x3">Six-panel (2 rows × 3 cols)</li>
+      <li data-layout="3x2">Six-panel Vertical (3 rows × 2 cols)</li>
       <li data-layout="2x4">Eight-panel (2 rows × 4 cols)</li>
-      <li data-layout="2x5">Ten-panel (2 rows × 5 cols)</li>
       <li data-layout="3x3">Nine-panel (3 rows × 3 cols)</li>
+      <li data-layout="2x5">Ten-panel (2 rows × 5 cols)</li>
+
     </ul>
     <div id="layout-preview">Select a layout to preview</div>
   </section>
@@ -226,7 +223,7 @@
       attachThumbnailEvents(img);
       urlInput.value = '';
     });
-    ['dragenter','dragover','dragleave','drop'].forEach(evt => {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
       dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
     });
     dropZone.addEventListener('dragover', () => dropZone.style.backgroundColor = '#e0e0e0');
@@ -266,8 +263,8 @@
       const thumbs = Array.from(gallery.querySelectorAll('.thumb'));
       const idx = thumbs.indexOf(img);
       if (e.shiftKey && lastIndex !== null) {
-        const [start, end] = [lastIndex, idx].sort((a,b) => a-b);
-        thumbs.slice(start, end+1).forEach(t => t.classList.add('selected'));
+        const [start, end] = [lastIndex, idx].sort((a, b) => a - b);
+        thumbs.slice(start, end + 1).forEach(t => t.classList.add('selected'));
       } else if (e.ctrlKey || e.metaKey) {
         img.classList.toggle('selected');
         lastIndex = idx;
@@ -361,21 +358,21 @@
       const doc = displayWindow.document;
       doc.open();
       doc.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DM Display</title><style>' +
-        'html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;}');
+        'html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#fff;}');
       // set custom property in display doc
       const fitStyle = getComputedStyle(document.documentElement).getPropertyValue('--fit-style').trim();
       doc.write(`:root{--fit-style:${fitStyle};}`);
-      doc.write('#container{display:grid;');
+      doc.write('#container{display:grid;gap:0.5rem;');
       const m2 = activeLayout.match(/^(\d+)x(\d+)$/);
       const rr = m2 ? m2[1] : 1;
       const cc = m2 ? m2[2] : 1;
       doc.write(`grid-template-rows:repeat(${rr},minmax(0,1fr));grid-template-columns:repeat(${cc},minmax(0,1fr));`);
       doc.write('width:100%;height:100%;}#container div, #container img{width:100%;height:100%;object-fit:var(--fit-style);object-position:center;}');
       doc.write('</style></head><body><div id="container">');
-      for (let i=0; i<selectedThumbs.length; i++) {
+      for (let i = 0; i < Math.min(rr * cc, selectedThumbs.length); i++) {
         const thumb = selectedThumbs[i];
         if (thumb) {
-          doc.write(`<img src="${thumb.src}"/>`);
+          doc.write(`<img style="background:#eee;" src="${thumb.src}"/>`);
         } else {
           doc.write('<div style="background:#eee;"></div>');
         }
@@ -400,4 +397,5 @@
     });
   </script>
 </body>
+
 </html>
