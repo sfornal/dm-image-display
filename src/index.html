@@ -144,10 +144,6 @@
   <header>
     <h1>DM Image Manager</h1>
     <div>
-      <input type="text" id="url-input" placeholder="Paste image URL here" style="width: 200px;" />
-      <button id="add-url-btn">Add from Web</button>
-      <button id="import-btn">Import Images from PC</button>
-      <button id="clear-gallery-btn">Clear Gallery</button>
       <button id="cast-btn">Cast to Display</button>
       <button id="clear-display-btn">Close Display</button>
       <input type="file" id="file-input" accept="image/*" multiple style="display: none;" />
@@ -155,7 +151,13 @@
   </header>
 
   <nav>
-    <div id="drop-zone">Drop images here or click "Import Images" above</div>
+    <div id="import-controls">
+      <input type="text" id="url-input" placeholder="Paste image URL here" style="width: 200px;" />
+      <button id="add-url-btn">Add from Web</button>
+      <button id="import-btn">Import Images from PC</button>
+      <button id="clear-gallery-btn">Clear Images</button>
+    </div>
+    <div id="drop-zone">Drop images from your PC here or click "Import Images from PC" above</div>
     <div class="gallery" id="gallery"></div>
   </nav>
 
@@ -388,12 +390,14 @@
 
     /* Clear Gallery Action */
     clearGalleryBtn.addEventListener('click', () => {
-      gallery.innerHTML = '';
-      selectedThumbs = [];
-      lastIndex = null;
-      activeLayout = null;
-      layoutList.querySelectorAll('li').forEach(li => li.classList.remove('active'));
-      renderPreview();
+      if (window.confirm('Are you sure? This can\’t be undone.')) {
+        gallery.innerHTML = '';
+        selectedThumbs = [];
+        lastIndex = null;
+        activeLayout = null;
+        layoutList.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+        renderPreview();
+      }
     });
   </script>
 </body>
